@@ -1,5 +1,6 @@
 import urllib.parse
 import feedparser
+import ssl
 from datetime import datetime
 
 def buscar_noticias(termo: str, limite: int = 5) -> list:
@@ -7,6 +8,12 @@ def buscar_noticias(termo: str, limite: int = 5) -> list:
     Busca notícias no Google News RSS com base em um termo de pesquisa.
     Retorna uma lista de dicionários contendo os dados da notícia.
     """
+    # Criar contexto SSL que ignora verificação (para resolver erro de certificado)
+    if not hasattr(ssl, '_create_unverified_context'):
+        ssl_context = None
+    else:
+        ssl_context = ssl._create_unverified_context()
+
     # Escapar o termo para usar na URL de pesquisa do Google News
     termo_codificado = urllib.parse.quote(termo)
     
@@ -17,7 +24,12 @@ def buscar_noticias(termo: str, limite: int = 5) -> list:
     url_feed = f"https://news.google.com/rss/search?q={termo_codificado}&hl=pt-BR&gl=BR&ceid=BR:pt-419"
     
     # Fazer o parsing do feed RSS
-    feed = feedparser.parse(url_feed)
+    # Algumas versões do feedparser não aceitam ssl_context diretamente, 
+    # mas o urllib (usado internamente) respeita o contexto global se configurado.
+    if ssl_context:
+        ssl._create_default_https_context = ssl._create_unverified_context
+        
+    feed = feedparser.parse(url_feed, agent='Mozilla/5.0')
     
     noticias = []
     for entrada in feed.entries[:limite]:

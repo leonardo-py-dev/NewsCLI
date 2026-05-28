@@ -12,9 +12,22 @@ __pycache__/
 
 # Configurações locais sensíveis (Chaves de API)
 .env
+.env.local
+
+# Dependências e artefatos Node.js
+node_modules/
+Frontend/node_modules/
+Backend/node_modules/
+Electron/node_modules/
+Frontend/dist/
+Electron/dist/
 
 # Arquivos de dados do usuário e histórico
 historico_noticias.json
+relatorios/
+CLI/relatorios/
+Backend/reports/
+Backend/data/
 
 # IDEs e editores
 .vscode/

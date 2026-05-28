@@ -1,0 +1,26 @@
+{
+  "name": "newscli",
+  "version": "1.0.0",
+  "description": "Projeto com backend Node.js, frontend Vite e CLI Python legada",
+  "main": "index.js",
+  "scripts": {
+    "dev:backend": "npm --prefix Backend run dev",
+    "dev:frontend": "npm --prefix Frontend run dev",
+    "start:backend": "npm --prefix Backend run start",
+    "build:frontend": "npm --prefix Frontend run build",
+    "electron:dev": "npm --prefix electron run dev",
+    "electron:dist": "npm --prefix electron run dist"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/leonardo-py-dev/NewsCLI.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/leonardo-py-dev/NewsCLI/issues"
+  },
+  "homepage": "https://github.com/leonardo-py-dev/NewsCLI#readme"
+}
