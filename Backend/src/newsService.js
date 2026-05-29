@@ -1,4 +1,9 @@
 const Parser = require("rss-parser");
+const NodeCache = require("node-cache");
+const { searchActiveNews } = require("./geminiService");
+
+// Cache com TTL de 1 hora (3600 segundos)
+const newsCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 });
 
 if (process.env.ALLOW_INVALID_CERTIFICATES !== "false") {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
@@ -33,7 +38,10 @@ function formatDate(value) {
   }).format(date);
 }
 
-async function searchNews(term, limit = 5) {
+/**
+ * Busca noticias via RSS (Google News)
+ */
+async function searchNewsRSS(term, limit = 5) {
   const encodedTerm = encodeURIComponent(term);
   const url = `https://news.google.com/rss/search?q=${encodedTerm}&hl=pt-BR&gl=BR&ceid=BR:pt-419`;
   const feed = await parser.parseURL(url);
@@ -58,6 +66,40 @@ async function searchNews(term, limit = 5) {
       descricao: cleanHtml(item.contentSnippet || item.content || ""),
     };
   });
+}
+
+/**
+ * Funcao principal de busca com cache e busca ativa
+ */
+async function searchNews(term, limit = 5) {
+  const cacheKey = `news_${term}_${limit}`;
+  const cachedData = newsCache.get(cacheKey);
+
+  if (cachedData) {
+    console.log(`[Cache] Retornando resultados para: ${term}`);
+    return cachedData;
+  }
+
+  console.log(`[Busca Ativa] Buscando noticias para: ${term}`);
+  
+  try {
+    // Tenta busca ativa com Gemini primeiro
+    let news = await searchActiveNews(term, limit);
+    
+    // Se falhar ou vier vazio, cai no RSS
+    if (!news || news.length === 0) {
+      console.log(`[Fallback] Usando RSS para: ${term}`);
+      news = await searchNewsRSS(term, limit);
+    }
+
+    // Salva no cache
+    newsCache.set(cacheKey, news);
+    return news;
+  } catch (error) {
+    console.error("Erro na busca de noticias:", error);
+    // Fallback final para RSS se o Gemini explodir
+    return await searchNewsRSS(term, limit);
+  }
 }
 
 module.exports = {
