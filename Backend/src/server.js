@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const { port, defaultThemes, geminiApiKey } = require("./config");
 const { searchNews } = require("./newsService");
-const { analyzeNews } = require("./geminiService");
+const { analyzeNews, compareNews, chatWithAI } = require("./geminiService");
 const { saveReportMarkdown } = require("./reportService");
 
 const app = express();
@@ -87,6 +87,41 @@ app.post("/api/analyze-batch", async (req, res) => {
   }
 
   return res.json({ results });
+});
+app.post("/api/chat", async (req, res) => {
+  const { message, history = [], newsContext = [] } = req.body || {};
+
+  if (!message) {
+    return res.status(400).json({ error: "Envie uma mensagem para o chat." });
+  }
+
+  try {
+    const reply = await chatWithAI(message, history, newsContext);
+    return res.json({ reply });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Falha ao interagir com o Tutor IA.",
+      details: error.message,
+    });
+  }
+});
+
+app.post("/api/compare", async (req, res) => {
+  const { news1, news2 } = req.body || {};
+
+  if (!news1 || !news2) {
+    return res.status(400).json({ error: "Envie duas noticias para comparacao." });
+  }
+
+  try {
+    const comparison = await compareNews(news1, news2);
+    return res.json({ comparison });
+  } catch (error) {
+    return res.status(500).json({
+      error: "Falha ao gerar o quadro comparativo.",
+      details: error.message,
+    });
+  }
 });
 
 app.listen(port, () => {

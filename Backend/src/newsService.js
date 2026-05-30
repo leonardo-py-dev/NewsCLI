@@ -2,8 +2,8 @@ const Parser = require("rss-parser");
 const NodeCache = require("node-cache");
 const { searchActiveNews } = require("./geminiService");
 
-// Cache com TTL de 1 hora (3600 segundos)
-const newsCache = new NodeCache({ stdTTL: 3600, checkperiod: 600 });
+// Cache com TTL reduzido para 5 minutos (300 segundos) para maior dinamismo nas pesquisas de notícias
+const newsCache = new NodeCache({ stdTTL: 300, checkperiod: 60 });
 
 if (process.env.ALLOW_INVALID_CERTIFICATES !== "false") {
   process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";

@@ -10,7 +10,11 @@ import {
   Trash2,
   Calendar,
   Globe,
-  Tag
+  Tag,
+  MessageSquare,
+  Send,
+  Sun,
+  Moon
 } from 'lucide-react'
 import { 
   BarChart, 
@@ -43,8 +47,36 @@ function App() {
   const [annotations, setAnnotations] = useState(() => JSON.parse(localStorage.getItem('annotations') || '{}'))
   const [filterSource, setFilterSource] = useState('')
   const [filterDate, setFilterDate] = useState('')
-  const [activeTab, setActiveTab] = useState('search') // 'search', 'bookmarks', 'trends', 'compare'
+  const [activeTab, setActiveTab] = useState('search')
   const [compareIds, setCompareIds] = useState([])
+  
+  // Modo Claro / Escuro
+  const [theme, setTheme] = useState(() => localStorage.getItem('theme') || 'dark')
+  
+  // Chat Inteligente
+  const [chatMessages, setChatMessages] = useState(() => JSON.parse(localStorage.getItem('chatMessages') || '[]'))
+  const [inputMessage, setInputMessage] = useState('')
+  const [loadingChat, setLoadingChat] = useState(false)
+  
+  // Comparação via IA
+  const [comparisonResult, setComparisonResult] = useState(null)
+  const [loadingComparison, setLoadingComparison] = useState(false)
+
+  // Efeito para aplicar o tema no body
+  useEffect(() => {
+    const root = window.document.body;
+    if (theme === 'dark') {
+      root.classList.add('dark-theme');
+    } else {
+      root.classList.remove('dark-theme');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme])
+
+  // Persistir mensagens do chat
+  useEffect(() => {
+    localStorage.setItem('chatMessages', JSON.stringify(chatMessages));
+  }, [chatMessages])
 
   useEffect(() => {
     localStorage.setItem('bookmarks', JSON.stringify(bookmarks))
@@ -190,6 +222,98 @@ function App() {
     })
   }
 
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'dark' ? 'light' : 'dark')
+  }
+
+  const handleSendChatMessage = async (e) => {
+    if (e) e.preventDefault()
+    if (!inputMessage.trim()) return
+
+    const userMsg = { role: 'user', content: inputMessage }
+    setChatMessages(prev => [...prev, userMsg])
+    setInputMessage('')
+    setLoadingChat(true)
+
+    // Pegar o contexto das notícias salvas
+    const newsContext = bookmarks.map(b => ({
+      titulo: b.titulo,
+      fonte: b.fonte,
+      descricao: b.descricao
+    }))
+
+    try {
+      const response = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: userMsg.content,
+          history: chatMessages,
+          newsContext
+        })
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Falha ao obter resposta do Tutor IA.')
+      }
+
+      setChatMessages(prev => [...prev, { role: 'bot', content: data.reply }])
+    } catch (err) {
+      setError(err.message)
+      setChatMessages(prev => [...prev, { role: 'bot', content: `❌ Desculpe, encontrei um erro ao processar: ${err.message}` }])
+    } finally {
+      setLoadingChat(false)
+    }
+  }
+
+  const handleQuickQuestion = (questionText) => {
+    setInputMessage(questionText)
+  }
+
+  const clearChat = () => {
+    setChatMessages([])
+    localStorage.removeItem('chatMessages')
+  }
+
+  const handleGenerateComparison = async () => {
+    if (compareIds.length !== 2) {
+      setError('Selecione exatamente duas notícias para comparar.')
+      return
+    }
+
+    const news1 = bookmarks.find(b => b.id === compareIds[0]) || news.find(n => n.id === compareIds[0])
+    const news2 = bookmarks.find(b => b.id === compareIds[1]) || news.find(n => n.id === compareIds[1])
+
+    if (!news1 || !news2) {
+      setError('Notícias selecionadas não encontradas.')
+      return
+    }
+
+    setLoadingComparison(true)
+    setError('')
+    setComparisonResult(null)
+
+    try {
+      const response = await fetch(`${API_BASE}/compare`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ news1, news2 })
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        throw new Error(data.error || 'Falha ao gerar comparação inteligente.')
+      }
+
+      setComparisonResult(data.comparison)
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoadingComparison(false)
+    }
+  }
+
   const newsToDisplay = activeTab === 'bookmarks' ? bookmarks : filteredNews
 
   return (
@@ -229,6 +353,13 @@ function App() {
           >
             <ArrowLeftRight size={20} />
             <span>Comparar</span>
+          </button>
+          <button 
+            className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chat')}
+          >
+            <MessageSquare size={20} />
+            <span>Tutor IA Chat</span>
           </button>
         </nav>
 
@@ -281,9 +412,92 @@ function App() {
 
       {/* Conteúdo Principal */}
       <main className="main-content">
+        <div className="theme-toggle-container">
+          <button className="theme-toggle-btn" onClick={toggleTheme}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+            <span>Tema {theme === 'dark' ? 'Claro' : 'Escuro'}</span>
+          </button>
+        </div>
         {error && <div className="error-banner">{error}</div>}
 
-        {activeTab === 'trends' ? (
+        {activeTab === 'chat' ? (
+          <div className="chat-view">
+            <section className="section-card">
+              <div className="section-header">
+                <div className="header-title">
+                  <MessageSquare size={22} className="text-primary" />
+                  <h2>Tutor de IA Pedagógico</h2>
+                </div>
+                <button className="text-button" onClick={clearChat}>Limpar Chat</button>
+              </div>
+
+              <div className="chat-container">
+                <div className="chat-history">
+                  {chatMessages.length === 0 ? (
+                    <div className="empty-state">
+                      <p>Olá! Sou seu Tutor de IA especializado no ENEM.</p>
+                      <p>Estou pronto para ajudar você a destrinchar atualidades, planejar sua redação e criar repertórios de alta nota.</p>
+                      <p style={{ marginTop: '1rem', fontSize: '0.8rem' }}>
+                        {bookmarks.length > 0 
+                          ? `💡 Detectei que você tem ${bookmarks.length} notícia(s) salva(s) nos favoritos! Nosso chat usará essas notícias como base.`
+                          : '💡 Dica: Adicione notícias aos favoritos na aba "Busca Ativa" para que eu possa usá-las como contexto de estudos.'}
+                      </p>
+                    </div>
+                  ) : (
+                    chatMessages.map((msg, idx) => (
+                      <div key={idx} className={`chat-message ${msg.role}`}>
+                        <strong>{msg.role === 'user' ? 'Estudante' : 'Tutor IA'}:</strong>
+                        <div style={{ marginTop: '0.25rem', whiteSpace: 'pre-wrap' }}>
+                          {msg.content}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                  {loadingChat && (
+                    <div className="chat-message bot">
+                      <strong>Tutor IA:</strong>
+                      <div className="typing-indicator">
+                        <span className="typing-dot" />
+                        <span className="typing-dot" />
+                        <span className="typing-dot" />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="chat-quick-tags">
+                  <span className="eyebrow" style={{ width: '100%', marginBottom: '0.25rem' }}>Perguntas Rápidas:</span>
+                  <button className="quick-tag" onClick={() => handleQuickQuestion("Como posso citar as notícias salvas na introdução de uma redação do ENEM?")}>
+                    ✍️ Como citar na Introdução?
+                  </button>
+                  <button className="quick-tag" onClick={() => handleQuickQuestion("Quais filósofos ou sociólogos se conectam melhor com os temas das minhas notícias salvas?")}>
+                    🧠 Sociólogos & Filósofos
+                  </button>
+                  <button className="quick-tag" onClick={() => handleQuickQuestion("Crie um roteiro de estudos de redação com base nos fatos que salvei.")}>
+                    📅 Roteiro de Estudos
+                  </button>
+                </div>
+
+                <form className="chat-input-area" onSubmit={handleSendChatMessage}>
+                  <textarea
+                    placeholder="Tire suas dúvidas pedagógicas ou planeje sua redação..."
+                    value={inputMessage}
+                    onChange={(e) => setInputMessage(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault()
+                        handleSendChatMessage()
+                      }
+                    }}
+                  />
+                  <button type="submit" className="primary-button" disabled={loadingChat || !inputMessage.trim()}>
+                    <Send size={18} />
+                  </button>
+                </form>
+              </div>
+            </section>
+          </div>
+        ) : activeTab === 'trends' ? (
           <div className="trends-view">
             <section className="section-card">
               <h2>Tendências de Temas no ENEM</h2>
@@ -312,8 +526,10 @@ function App() {
           <div className="compare-view">
             <section className="section-card">
               <div className="section-header">
-                <h2>Comparador de Notícias</h2>
-                <p>Selecione duas notícias abaixo para comparar seus pontos de vista.</p>
+                <div>
+                  <h2>Comparador de Notícias</h2>
+                  <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>Selecione duas notícias nos favoritos ou buscas e compare-as.</p>
+                </div>
               </div>
               
               <div className="compare-grid">
@@ -329,7 +545,7 @@ function App() {
                           <button className="text-button" onClick={() => toggleCompare(newsItem.id)}>Remover</button>
                         </div>
                       ) : (
-                        <div className="empty-slot">Selecione uma notícia</div>
+                        <div className="empty-slot">Selecione uma notícia para a vaga {idx + 1}</div>
                       )}
                     </div>
                   )
@@ -338,7 +554,49 @@ function App() {
               
               {compareIds.length === 2 && (
                 <div className="comparison-actions">
-                  <button className="primary-button">Gerar Quadro Comparativo (IA)</button>
+                  <button className="primary-button" style={{ width: '100%' }} onClick={handleGenerateComparison} disabled={loadingComparison}>
+                    {loadingComparison ? 'Processando Quadro Comparativo...' : 'Gerar Quadro Comparativo (IA)'}
+                  </button>
+                </div>
+              )}
+
+              {comparisonResult && (
+                <div className="compare-result-box">
+                  <div className="section-header" style={{ borderBottom: 'none', paddingBottom: 0 }}>
+                    <h3 style={{ fontSize: '1.25rem' }}>⚖️ Quadro Comparativo Pedagógico</h3>
+                  </div>
+                  
+                  <div className="info-grid">
+                    <div>
+                      <div className="compare-block-title">🤝 Eixos de Convergência</div>
+                      <div className="compare-list">
+                        {comparisonResult.convergencias && comparisonResult.convergencias.map((c, i) => (
+                          <div key={i} className="compare-list-item">{c}</div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div style={{ marginTop: '1rem' }}>
+                      <div className="compare-block-title">⚡ Pontos de Divergência ou Abordagem</div>
+                      <div className="compare-list">
+                        {comparisonResult.divergencias && comparisonResult.divergencias.map((d, i) => (
+                          <div key={i} className="compare-list-item">{d}</div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="info-box" style={{ marginTop: '1rem' }}>
+                    <div className="compare-block-title">🧠 Análise Crítica do Contraste</div>
+                    <p style={{ lineHeight: 1.6 }}>{comparisonResult.analise_critica}</p>
+                  </div>
+
+                  <div className="info-box" style={{ marginTop: '1rem' }}>
+                    <div className="compare-block-title">✍️ Aplicação Conjunta na Redação</div>
+                    <p style={{ lineHeight: 1.6, background: 'var(--bg)', padding: '1rem', borderRadius: 'var(--radius)' }}>
+                      {comparisonResult.repertorio_redacao_comparativo}
+                    </p>
+                  </div>
                 </div>
               )}
             </section>
